@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "screenshotter-bot"
+version = "0.1.0"
+description = ""
+authors = ["Brian Stottler <brianstottler@gmail.com>"]
+readme = "README.md"
+packages = [{include = "screenshotter_bot"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+discord-py = "^2.2.3"
+mss = "^9.0.1"
+pynput = "^1.7.6"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
