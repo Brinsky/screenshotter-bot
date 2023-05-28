@@ -1,5 +1,6 @@
 from .config import Config
 from mss import mss
+from mss.tools import to_png
 from pynput import keyboard
 from typing import Any, Callable
 import asyncio
@@ -21,11 +22,30 @@ async def send_screenshot(channel: discord.TextChannel, filepath: str):
     print(f'Opening screenshot from "{threading.current_thread().name}"')
     await channel.send(file=discord.File(filepath))
 
+def get_region(monitor: dict, monitor_index: int, percentages: tuple) -> dict:
+        width_percent = percentages[0]
+        height_percent = percentages[1]
+
+        mon_width =  monitor['width']
+        mon_height = monitor['height']
+        mon_center_x = int(mon_width / 2)
+        mon_center_y = int(mon_height / 2)
+
+        image_width = int(mon_width * width_percent)
+        image_height = int(mon_height * height_percent)
+
+        left = mon_center_x - int(image_width / 2)
+        top = mon_center_y - int(image_height / 2)
+
+        return {"top": top, "left": left, "width": image_width, "height": image_height, "mon": monitor_index}
+
 class ScreenshotHotkeyListener:
     def __init__(self, client: discord.Client, channel: discord.TextChannel, config: Config):
         self.client = client
         self.channel = channel
         self.hotkey = config.hotkey
+        self.monitor = config.monitor
+        self.region_percentages = (config.screenshot_width_percent, config.screenshot_height_percent)
         self.mss = None
         self.listener = None
 
@@ -37,7 +57,12 @@ class ScreenshotHotkeyListener:
     def on_activate(self):
         filepath = f'screenshots/screenshot_{time.time_ns()}.png'
         print(f'Hotkey activated! Saving "{filepath}" from "{threading.current_thread().name}"')
-        self.mss.shot(output=filepath)
+
+        region = get_region(self.mss.monitors[self.monitor], self.monitor, self.region_percentages)
+        print(f'Calculated screenshot region of {region}')
+
+        image = self.mss.grab(region)
+        to_png(image.rgb, image.size, output=filepath)
         # For some reeason this runs the coroutine a lot sooner than loop.create_task
         asyncio.run_coroutine_threadsafe(send_screenshot(self.channel, filepath), self.client.loop)
 
