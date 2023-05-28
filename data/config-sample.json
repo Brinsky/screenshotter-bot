@@ -2,7 +2,7 @@
 	"token": "<BOT_TOKEN>",
 	"channel": 1234,
 	"hotkey": "<ctrl>+<alt>+u",
-	"monitor": 1,
+	"monitor": 0,
 	"screenshot_width_percent": 1.00,
 	"screenshot_height_percent": 1.00
 }

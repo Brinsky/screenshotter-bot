@@ -9,8 +9,9 @@ packages = [{include = "screenshotter_bot"}]
 [tool.poetry.dependencies]
 python = "^3.11"
 discord-py = "^2.2.3"
-mss = "^9.0.1"
 pynput = "^1.7.6"
+dxcam = "^0.0.5"
+pillow = "^9.5.0"
 
 
 [build-system]

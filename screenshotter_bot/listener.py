@@ -1,10 +1,10 @@
 from .config import Config
-from mss import mss
-from mss.tools import to_png
+from PIL import Image
 from pynput import keyboard
 from typing import Any, Callable
 import asyncio
 import discord
+import dxcam
 import threading
 import time
 
@@ -22,14 +22,17 @@ async def send_screenshot(channel: discord.TextChannel, filepath: str):
     print(f'Opening screenshot from "{threading.current_thread().name}"')
     await channel.send(file=discord.File(filepath))
 
-def get_region(monitor: dict, monitor_index: int, percentages: tuple) -> dict:
+def get_region(monitor_region: tuple[int, int, int, int], percentages: tuple[int, int]) -> tuple[int, int, int, int]:
+        # Region format: (left, top, right, bottom)
+
+        # Probably overkill, but no guarantee that left and top are always 0
+        mon_width =  monitor_region[2] - monitor_region[0]
+        mon_height = monitor_region[3] - monitor_region[1]
+        mon_center_x = int((monitor_region[0] + monitor_region[2]) / 2)
+        mon_center_y = int((monitor_region[1] + monitor_region[3]) / 2)
+
         width_percent = percentages[0]
         height_percent = percentages[1]
-
-        mon_width =  monitor['width']
-        mon_height = monitor['height']
-        mon_center_x = int(mon_width / 2)
-        mon_center_y = int(mon_height / 2)
 
         image_width = int(mon_width * width_percent)
         image_height = int(mon_height * height_percent)
@@ -37,7 +40,21 @@ def get_region(monitor: dict, monitor_index: int, percentages: tuple) -> dict:
         left = mon_center_x - int(image_width / 2)
         top = mon_center_y - int(image_height / 2)
 
-        return {"top": top, "left": left, "width": image_width, "height": image_height, "mon": monitor_index}
+        return (left, top, left + image_width, top + image_height)
+
+def grab_deflake(camera: dxcam.DXCamera, region: tuple[int, int, int, int]) -> Image:
+    # DXCamera.grab() will return None if there isn't a "new" frame available
+    frame = camera.grab(region)
+    if frame is None:
+        print(f'First grab() failed - waiting and grabbing again')
+        # Unfortunate hack - wait >1/60th of a second and try again :/
+        time.sleep(0.02)
+        frame = camera.grab(region)
+    
+    if frame is None:
+        print(f'Second grab() failed')
+        return None
+    return Image.fromarray(frame)
 
 class ScreenshotHotkeyListener:
     def __init__(self, client: discord.Client, channel: discord.TextChannel, config: Config):
@@ -46,25 +63,25 @@ class ScreenshotHotkeyListener:
         self.hotkey = config.hotkey
         self.monitor = config.monitor
         self.region_percentages = (config.screenshot_width_percent, config.screenshot_height_percent)
-        self.mss = None
+        self.camera = None
         self.listener = None
 
     def on_start(self):
-        # mss must be initialized from the same thread where it will be used
-        print(f'Initializing mss on "{threading.current_thread().name}"')
-        self.mss = mss()
+        print(f'Initializing DXCamera on "{threading.current_thread().name}"')
+        self.camera = dxcam.create(output_idx=self.monitor)
 
     def on_activate(self):
         filepath = f'screenshots/screenshot_{time.time_ns()}.png'
         print(f'Hotkey activated! Saving "{filepath}" from "{threading.current_thread().name}"')
 
-        region = get_region(self.mss.monitors[self.monitor], self.monitor, self.region_percentages)
+        region = get_region(self.camera.region, self.region_percentages)
         print(f'Calculated screenshot region of {region}')
 
-        image = self.mss.grab(region)
-        to_png(image.rgb, image.size, output=filepath)
-        # For some reeason this runs the coroutine a lot sooner than loop.create_task
-        asyncio.run_coroutine_threadsafe(send_screenshot(self.channel, filepath), self.client.loop)
+        image = grab_deflake(self.camera, region)
+        if image is not None:
+            image.save(filepath, 'PNG')
+            # For some reeason this runs the coroutine a lot sooner than loop.create_task
+            asyncio.run_coroutine_threadsafe(send_screenshot(self.channel, filepath), self.client.loop)
 
     def start(self):
         print(f'Starting listener from "{threading.current_thread().name}"')

@@ -19,8 +19,8 @@ def load_config(filepath: str) -> Config:
         monitor=config_json['monitor'],
         screenshot_width_percent=config_json['screenshot_width_percent'],
         screenshot_height_percent=config_json['screenshot_height_percent'])
-    if config.monitor < 1:
-        raise ValueError('monitor must be a positive integer')
+    if config.monitor < 0:
+        raise ValueError('monitor must be a greater than or equal to 0')
     if config.screenshot_width_percent <= 0 or config.screenshot_width_percent > 1:
         raise ValueError('screenshot_width_percent must be in the range (0, 1]')
     if config.screenshot_height_percent <= 0 or config.screenshot_height_percent > 1:
